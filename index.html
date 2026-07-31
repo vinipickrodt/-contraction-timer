@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Contador de Contrações</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animação suave de pulso para o botão ativo */
+        @keyframes soft-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.4); }
+            70% { box-shadow: 0 0 0 30px rgba(225, 29, 72, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+        }
+        .btn-active-pulse {
+            animation: soft-pulse 2s infinite;
+        }
+        
+        /* Ocultar barra de rolagem mas manter funcionalidade */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased h-screen overflow-hidden flex justify-center">
+
+    <!-- Container Mobile First -->
+    <div class="w-full max-w-md h-full flex flex-col bg-white shadow-xl relative">
+        
+        <!-- Cabeçalho -->
+        <header class="pt-8 pb-4 px-6 bg-white border-b border-slate-100 flex justify-between items-center z-10">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Contrações</h1>
+                <p class="text-sm text-slate-500 font-medium mt-1">Acompanhe seu trabalho de parto</p>
+            </div>
+            <button id="btnSettings" class="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-full hover:bg-slate-50" aria-label="Limpar histórico">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+            </button>
+        </header>
+
+        <!-- Área Principal de Ação -->
+        <section class="flex-shrink-0 pt-10 pb-6 flex flex-col items-center justify-center relative bg-gradient-to-b from-white to-slate-50">
+            
+            <!-- Indicador de Status (Descanso ou Contração) -->
+            <div id="statusBadge" class="mb-6 px-4 py-1.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-colors duration-300 bg-teal-100 text-teal-700">
+                Em repouso
+            </div>
+
+            <!-- Botão Principal -->
+            <button id="mainBtn" class="relative w-48 h-48 rounded-full flex flex-col items-center justify-center text-white shadow-lg transition-all duration-300 transform active:scale-95 bg-teal-500 hover:bg-teal-600">
+                <span id="btnIcon" class="mb-2">
+                    <!-- Ícone de Play -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </span>
+                <span id="btnLabel" class="text-xl font-bold">Iniciar</span>
+                <span id="liveTimer" class="text-3xl font-light mt-1 hidden">00:00</span>
+            </button>
+
+            <!-- Dica rápida (Regra 5-1-1) -->
+            <p class="mt-6 text-xs text-slate-400 text-center px-8">
+                Lembre-se da regra 5-1-1: Contrações a cada <strong class="text-slate-500">5 min</strong>, durando <strong class="text-slate-500">1 min</strong>, por <strong class="text-slate-500">1 hora</strong> = hora da maternidade.
+            </p>
+        </section>
+
+        <!-- Lista de Histórico -->
+        <section class="flex-1 overflow-y-auto no-scrollbar px-4 pb-8 bg-slate-50">
+            
+            <!-- Resumo (Médias) -->
+            <div class="grid grid-cols-2 gap-3 my-4">
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-xs text-slate-500 font-medium mb-1">Média de Duração</p>
+                    <p id="avgDuration" class="text-lg font-semibold text-slate-800">--</p>
+                </div>
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-xs text-slate-500 font-medium mb-1">Média de Intervalo</p>
+                    <p id="avgFrequency" class="text-lg font-semibold text-slate-800">--</p>
+                </div>
+            </div>
+
+            <h2 class="text-lg font-bold text-slate-700 mt-6 mb-3 px-2 flex justify-between items-end">
+                Histórico
+                <span id="contractionCount" class="text-sm font-normal text-slate-500">0 registros</span>
+            </h2>
+
+            <div id="historyList" class="space-y-3">
+                <!-- Itens injetados via JS -->
+                <div id="emptyState" class="text-center py-10 text-slate-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 opacity-50"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    <p class="text-sm">Nenhuma contração registrada ainda.</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Modal de Confirmação (Limpar Dados) -->
+        <div id="confirmModal" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center opacity-0 pointer-events-none transition-opacity z-50 px-4">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform duration-300" id="modalContent">
+                <div class="w-12 h-12 rounded-full bg-red-100 text-red-500 flex items-center justify-center mb-4 mx-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold text-center text-slate-800 mb-2">Limpar Histórico?</h3>
+                <p class="text-center text-slate-500 text-sm mb-6">Esta ação apagará todas as contrações gravadas e não pode ser desfeita.</p>
+                <div class="flex gap-3">
+                    <button id="btnCancelClear" class="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-colors">Cancelar</button>
+                    <button id="btnConfirmClear" class="flex-1 py-3 px-4 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-colors shadow-md shadow-red-200">Sim, limpar</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- ESTADO DA APLICAÇÃO ---
+        let contractions = [];
+        let isTracking = false;
+        let activeStartTime = null;
+        let timerInterval = null;
+
+        // --- ELEMENTOS DO DOM ---
+        const mainBtn = document.getElementById('mainBtn');
+        const btnLabel = document.getElementById('btnLabel');
+        const btnIcon = document.getElementById('btnIcon');
+        const liveTimer = document.getElementById('liveTimer');
+        const statusBadge = document.getElementById('statusBadge');
+        
+        const historyList = document.getElementById('historyList');
+        const emptyState = document.getElementById('emptyState');
+        const contractionCount = document.getElementById('contractionCount');
+        
+        const avgDurationEl = document.getElementById('avgDuration');
+        const avgFrequencyEl = document.getElementById('avgFrequency');
+
+        const btnSettings = document.getElementById('btnSettings');
+        const confirmModal = document.getElementById('confirmModal');
+        const modalContent = document.getElementById('modalContent');
+        const btnCancelClear = document.getElementById('btnCancelClear');
+        const btnConfirmClear = document.getElementById('btnConfirmClear');
+
+        // Ícones SVG
+        const iconPlay = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+        const iconStop = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+
+        // --- INICIALIZAÇÃO ---
+        function init() {
+            // Carregar dados do LocalStorage
+            const savedContractions = localStorage.getItem('app_contractions');
+            if (savedContractions) {
+                contractions = JSON.parse(savedContractions);
+            }
+
+            // Verificar se existia uma contração rodando (previne perda de dados se recarregar a aba)
+            const savedActiveStart = localStorage.getItem('app_activeStartTime');
+            if (savedActiveStart) {
+                isTracking = true;
+                activeStartTime = parseInt(savedActiveStart, 10);
+                startUI();
+                updateLiveTimer(); // atualiza imediato
+                timerInterval = setInterval(updateLiveTimer, 1000);
+            }
+
+            updateHistoryUI();
+        }
+
+        // --- LÓGICA PRINCIPAL ---
+        mainBtn.addEventListener('click', () => {
+            if (!isTracking) {
+                // INICIAR CONTRAÇÃO
+                isTracking = true;
+                activeStartTime = Date.now();
+                localStorage.setItem('app_activeStartTime', activeStartTime);
+                
+                startUI();
+                updateLiveTimer();
+                timerInterval = setInterval(updateLiveTimer, 1000);
+            } else {
+                // PARAR CONTRAÇÃO
+                isTracking = false;
+                const endTime = Date.now();
+                clearInterval(timerInterval);
+                
+                const duration = endTime - activeStartTime;
+                
+                // Calcular frequência (intervalo entre o INÍCIO da anterior e o INÍCIO desta)
+                let frequency = null;
+                if (contractions.length > 0) {
+                    const lastContraction = contractions[0]; // array está ordenado do mais novo pro mais velho
+                    frequency = activeStartTime - lastContraction.startTime;
+                }
+
+                // Salvar nova contração (no topo do array)
+                const newContraction = {
+                    id: Date.now().toString(),
+                    startTime: activeStartTime,
+                    endTime: endTime,
+                    duration: duration,
+                    frequency: frequency
+                };
+                contractions.unshift(newContraction);
+                
+                // Limpar estado ativo
+                activeStartTime = null;
+                localStorage.removeItem('app_activeStartTime');
+                saveContractions();
+                
+                stopUI();
+                updateHistoryUI();
+            }
+        });
+
+        // --- ATUALIZAÇÕES DE INTERFACE (UI) ---
+
+        function startUI() {
+            // Estilos do Botão
+            mainBtn.classList.remove('bg-teal-500', 'hover:bg-teal-600');
+            mainBtn.classList.add('bg-rose-500', 'hover:bg-rose-600', 'btn-active-pulse');
+            
+            btnLabel.classList.add('hidden');
+            btnIcon.innerHTML = iconStop;
+            liveTimer.classList.remove('hidden');
+
+            // Badge de status
+            statusBadge.textContent = "Contração Ocorrendo";
+            statusBadge.classList.remove('bg-teal-100', 'text-teal-700');
+            statusBadge.classList.add('bg-rose-100', 'text-rose-700');
+        }
+
+        function stopUI() {
+            // Estilos do Botão
+            mainBtn.classList.remove('bg-rose-500', 'hover:bg-rose-600', 'btn-active-pulse');
+            mainBtn.classList.add('bg-teal-500', 'hover:bg-teal-600');
+            
+            btnLabel.classList.remove('hidden');
+            btnIcon.innerHTML = iconPlay;
+            liveTimer.classList.add('hidden');
+
+            // Badge de status
+            statusBadge.textContent = "Em repouso";
+            statusBadge.classList.remove('bg-rose-100', 'text-rose-700');
+            statusBadge.classList.add('bg-teal-100', 'text-teal-700');
+        }
+
+        function updateLiveTimer() {
+            if (!activeStartTime) return;
+            const now = Date.now();
+            const diff = now - activeStartTime;
+            liveTimer.textContent = formatDurationMs(diff, false);
+        }
+
+        function updateHistoryUI() {
+            contractionCount.textContent = `${contractions.length} registro${contractions.length !== 1 ? 's' : ''}`;
+            
+            if (contractions.length === 0) {
+                historyList.innerHTML = '';
+                historyList.appendChild(emptyState);
+                emptyState.style.display = 'block';
+                avgDurationEl.textContent = '--';
+                avgFrequencyEl.textContent = '--';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            historyList.innerHTML = '';
+
+            // Renderizar itens
+            contractions.forEach((c, index) => {
+                const item = document.createElement('div');
+                item.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all";
+                
+                const timeStr = new Date(c.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const durStr = formatDurationMs(c.duration, true);
+                const freqStr = c.frequency ? formatDurationMs(c.frequency, true) : 'Primeira';
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="bg-slate-50 w-12 h-12 rounded-full flex flex-col items-center justify-center text-slate-500 shrink-0">
+                            <span class="text-xs font-bold">${timeStr}</span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-800">Duração: <span class="text-rose-500">${durStr}</span></p>
+                            <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                Intervalo: ${freqStr}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                historyList.appendChild(item);
+            });
+
+            calculateAverages();
+        }
+
+        function calculateAverages() {
+            // Calcular médias da última 1 hora para dar um retrato atual
+            const oneHourAgo = Date.now() - (60 * 60 * 1000);
+            const recentContractions = contractions.filter(c => c.startTime >= oneHourAgo);
+            
+            const dataToUse = recentContractions.length > 0 ? recentContractions : contractions;
+
+            if (dataToUse.length === 0) return;
+
+            // Duração média
+            const totalDuration = dataToUse.reduce((acc, c) => acc + c.duration, 0);
+            const avgDur = totalDuration / dataToUse.length;
+            avgDurationEl.textContent = formatDurationMs(avgDur, true);
+
+            // Frequência média (precisa de contrações que tenham o campo frequency preenchido)
+            const freqs = dataToUse.filter(c => c.frequency !== null);
+            if (freqs.length > 0) {
+                const totalFreq = freqs.reduce((acc, c) => acc + c.frequency, 0);
+                const avgFreq = totalFreq / freqs.length;
+                avgFrequencyEl.textContent = formatDurationMs(avgFreq, true);
+            } else {
+                avgFrequencyEl.textContent = '--';
+            }
+        }
+
+        // --- UTILS ---
+        
+        // Formata milissegundos para mm:ss ou legível (ex: 1m 20s)
+        function formatDurationMs(ms, readable = false) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            
+            if (readable) {
+                if (minutes === 0) return `${seconds}s`;
+                if (seconds === 0) return `${minutes}m`;
+                return `${minutes}m ${seconds}s`;
+            } else {
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function saveContractions() {
+            localStorage.setItem('app_contractions', JSON.stringify(contractions));
+        }
+
+        // --- MODAL & SETTINGS ---
+
+        function openModal() {
+            confirmModal.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                confirmModal.classList.add('opacity-0', 'pointer-events-none');
+            }, 300);
+        }
+
+        btnSettings.addEventListener('click', openModal);
+        btnCancelClear.addEventListener('click', closeModal);
+        
+        btnConfirmClear.addEventListener('click', () => {
+            contractions = [];
+            localStorage.removeItem('app_contractions');
+            updateHistoryUI();
+            closeModal();
+        });
+
+        // Fechar modal clicando fora
+        confirmModal.addEventListener('click', (e) => {
+            if (e.target === confirmModal) closeModal();
+        });
+
+        // Inicializar o app
+        init();
+
+    </script>
+</body>
+</html>
+
