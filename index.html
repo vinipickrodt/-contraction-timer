@@ -24,15 +24,28 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+        /* Mantém a área rolável estável em navegadores móveis. */
+        .app-shell {
+            height: 100vh;
+            height: 100dvh;
+            max-height: 100dvh;
+        }
+
+        .history-scroll {
+            min-height: 0;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased h-screen overflow-hidden flex justify-center">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen overflow-hidden flex justify-center">
 
     <!-- Container Mobile First -->
-    <div class="w-full max-w-md h-full flex flex-col bg-white shadow-xl relative">
+    <div class="app-shell w-full max-w-md flex flex-col bg-white shadow-xl relative overflow-hidden">
         
         <!-- Cabeçalho -->
-        <header class="pt-8 pb-4 px-6 bg-white border-b border-slate-100 flex justify-between items-center z-10">
+        <header class="flex-shrink-0 pt-8 pb-4 px-6 bg-white border-b border-slate-100 flex justify-between items-center z-10">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Contrações</h1>
                 <p class="text-sm text-slate-500 font-medium mt-1">Acompanhe seu trabalho de parto</p>
@@ -43,7 +56,7 @@
         </header>
 
         <!-- Área Principal de Ação -->
-        <section class="flex-shrink-0 pt-10 pb-6 flex flex-col items-center justify-center relative bg-gradient-to-b from-white to-slate-50">
+        <section class="flex-shrink-0 pt-8 sm:pt-10 pb-6 flex flex-col items-center justify-center relative bg-gradient-to-b from-white to-slate-50">
             
             <!-- Indicador de Status (Descanso ou Contração) -->
             <div id="statusBadge" class="mb-6 px-4 py-1.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-colors duration-300 bg-teal-100 text-teal-700">
@@ -60,6 +73,10 @@
                 <span id="liveTimer" class="text-3xl font-light mt-1 hidden">00:00</span>
             </button>
 
+            <button id="btnDiscardActive" class="hidden mt-4 py-2 px-4 text-sm font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" type="button">
+                Descartar contagem atual
+            </button>
+
             <!-- Dica rápida (Regra 5-1-1) -->
             <p class="mt-6 text-xs text-slate-400 text-center px-8">
                 Lembre-se da regra 5-1-1: Contrações a cada <strong class="text-slate-500">5 min</strong>, durando <strong class="text-slate-500">1 min</strong>, por <strong class="text-slate-500">1 hora</strong> = hora da maternidade.
@@ -67,7 +84,7 @@
         </section>
 
         <!-- Lista de Histórico -->
-        <section class="flex-1 overflow-y-auto no-scrollbar px-4 pb-8 bg-slate-50">
+        <section class="history-scroll flex-1 overflow-y-auto no-scrollbar px-4 pb-8 bg-slate-50">
             
             <!-- Resumo (Médias) -->
             <div class="grid grid-cols-2 gap-3 my-4">
@@ -125,6 +142,7 @@
         const btnIcon = document.getElementById('btnIcon');
         const liveTimer = document.getElementById('liveTimer');
         const statusBadge = document.getElementById('statusBadge');
+        const btnDiscardActive = document.getElementById('btnDiscardActive');
         
         const historyList = document.getElementById('historyList');
         const emptyState = document.getElementById('emptyState');
@@ -148,17 +166,36 @@
             // Carregar dados do LocalStorage
             const savedContractions = localStorage.getItem('app_contractions');
             if (savedContractions) {
-                contractions = JSON.parse(savedContractions);
+                try {
+                    const parsedContractions = JSON.parse(savedContractions);
+                    contractions = Array.isArray(parsedContractions)
+                        ? parsedContractions.filter(isValidContraction).map(contraction => ({
+                            ...contraction,
+                            id: contraction.id || `${contraction.startTime}-${contraction.endTime}`
+                        }))
+                        : [];
+                    contractions.sort((a, b) => b.startTime - a.startTime);
+                    recalculateFrequencies();
+                } catch (error) {
+                    // Um valor corrompido não pode impedir o app de abrir.
+                    contractions = [];
+                    localStorage.removeItem('app_contractions');
+                }
             }
 
             // Verificar se existia uma contração rodando (previne perda de dados se recarregar a aba)
             const savedActiveStart = localStorage.getItem('app_activeStartTime');
             if (savedActiveStart) {
-                isTracking = true;
-                activeStartTime = parseInt(savedActiveStart, 10);
-                startUI();
-                updateLiveTimer(); // atualiza imediato
-                timerInterval = setInterval(updateLiveTimer, 1000);
+                const parsedActiveStart = Number.parseInt(savedActiveStart, 10);
+                if (Number.isFinite(parsedActiveStart) && parsedActiveStart > 0) {
+                    isTracking = true;
+                    activeStartTime = parsedActiveStart;
+                    startUI();
+                    updateLiveTimer(); // atualiza imediato
+                    startTimer();
+                } else {
+                    localStorage.removeItem('app_activeStartTime');
+                }
             }
 
             updateHistoryUI();
@@ -174,31 +211,26 @@
                 
                 startUI();
                 updateLiveTimer();
-                timerInterval = setInterval(updateLiveTimer, 1000);
+                startTimer();
             } else {
                 // PARAR CONTRAÇÃO
                 isTracking = false;
                 const endTime = Date.now();
-                clearInterval(timerInterval);
+                stopTimer();
                 
                 const duration = endTime - activeStartTime;
                 
                 // Calcular frequência (intervalo entre o INÍCIO da anterior e o INÍCIO desta)
-                let frequency = null;
-                if (contractions.length > 0) {
-                    const lastContraction = contractions[0]; // array está ordenado do mais novo pro mais velho
-                    frequency = activeStartTime - lastContraction.startTime;
-                }
-
                 // Salvar nova contração (no topo do array)
                 const newContraction = {
                     id: Date.now().toString(),
                     startTime: activeStartTime,
                     endTime: endTime,
                     duration: duration,
-                    frequency: frequency
+                    frequency: null
                 };
                 contractions.unshift(newContraction);
+                recalculateFrequencies();
                 
                 // Limpar estado ativo
                 activeStartTime = null;
@@ -220,6 +252,7 @@
             btnLabel.classList.add('hidden');
             btnIcon.innerHTML = iconStop;
             liveTimer.classList.remove('hidden');
+            btnDiscardActive.classList.remove('hidden');
 
             // Badge de status
             statusBadge.textContent = "Contração Ocorrendo";
@@ -235,6 +268,7 @@
             btnLabel.classList.remove('hidden');
             btnIcon.innerHTML = iconPlay;
             liveTimer.classList.add('hidden');
+            btnDiscardActive.classList.add('hidden');
 
             // Badge de status
             statusBadge.textContent = "Em repouso";
@@ -247,6 +281,36 @@
             const now = Date.now();
             const diff = now - activeStartTime;
             liveTimer.textContent = formatDurationMs(diff, false);
+        }
+
+        function startTimer() {
+            stopTimer();
+            timerInterval = setInterval(updateLiveTimer, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval !== null) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function isValidContraction(contraction) {
+            return contraction &&
+                Number.isFinite(Number(contraction.startTime)) &&
+                Number.isFinite(Number(contraction.endTime)) &&
+                Number.isFinite(Number(contraction.duration)) &&
+                Number(contraction.endTime) >= Number(contraction.startTime) &&
+                Number(contraction.duration) >= 0;
+        }
+
+        function recalculateFrequencies() {
+            contractions.sort((a, b) => b.startTime - a.startTime);
+            contractions.forEach((contraction, index) => {
+                contraction.frequency = index < contractions.length - 1
+                    ? contraction.startTime - contractions[index + 1].startTime
+                    : null;
+            });
         }
 
         function updateHistoryUI() {
@@ -286,7 +350,11 @@
                             </p>
                         </div>
                     </div>
+                    <button type="button" data-delete-id="${c.id}" class="shrink-0 ml-3 p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors" aria-label="Excluir contração das ${timeStr}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 2 2 2v2"></path></svg>
+                    </button>
                 `;
+                item.querySelector('[data-delete-id]').addEventListener('click', () => deleteContraction(c.id));
                 historyList.appendChild(item);
             });
 
@@ -339,6 +407,19 @@
             localStorage.setItem('app_contractions', JSON.stringify(contractions));
         }
 
+        function deleteContraction(id) {
+            const contraction = contractions.find(c => c.id === id);
+            if (!contraction) return;
+
+            const timeStr = new Date(contraction.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            if (!window.confirm(`Excluir a contração das ${timeStr}?`)) return;
+
+            contractions = contractions.filter(c => c.id !== id);
+            recalculateFrequencies();
+            saveContractions();
+            updateHistoryUI();
+        }
+
         // --- MODAL & SETTINGS ---
 
         function openModal() {
@@ -359,6 +440,16 @@
 
         btnSettings.addEventListener('click', openModal);
         btnCancelClear.addEventListener('click', closeModal);
+
+        btnDiscardActive.addEventListener('click', () => {
+            if (!isTracking || !window.confirm('Descartar a contagem atual?')) return;
+
+            isTracking = false;
+            activeStartTime = null;
+            stopTimer();
+            localStorage.removeItem('app_activeStartTime');
+            stopUI();
+        });
         
         btnConfirmClear.addEventListener('click', () => {
             contractions = [];
