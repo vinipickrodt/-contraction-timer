@@ -128,6 +128,12 @@
         .summary-card { padding: 14px; }
         .summary-label { margin: 0 0 5px; color: var(--muted); font-size: 12px; }
         .summary-value { margin: 0; font-size: 19px; font-weight: 800; }
+        .latest-card { margin-top: 10px; padding: 16px; color: #fff; background: var(--teal); border-radius: var(--radius); box-shadow: 0 8px 18px rgba(22, 135, 126, .18); }
+        .latest-card[hidden] { display: none; }
+        .latest-label { margin: 0 0 8px; color: rgba(255, 255, 255, .78); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+        .latest-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .latest-value { margin: 0; font-size: 18px; font-weight: 800; }
+        .latest-value small { display: block; margin-top: 3px; color: rgba(255, 255, 255, .75); font-size: 11px; font-weight: 600; }
 
         .history-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 24px 2px 10px; }
         .history-heading h2 { margin: 0; font-size: 20px; }
@@ -141,6 +147,9 @@
         .frequency { display: flex; align-items: center; gap: 5px; margin: 4px 0 0; color: var(--muted); font-size: 12px; }
         .delete-button { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; color: #9aa9a6; background: transparent; border: 0; border-radius: 10px; }
         .delete-button:hover, .delete-button:focus-visible { color: var(--rose); background: var(--rose-soft); }
+        .edit-button { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; color: #9aa9a6; background: transparent; border: 0; border-radius: 10px; }
+        .edit-button:hover, .edit-button:focus-visible { color: var(--teal); background: var(--teal-soft); }
+        .history-actions { display: flex; flex: 0 0 auto; gap: 2px; }
         .empty { padding: 44px 16px; color: var(--muted); text-align: center; }
         .empty svg { margin: 0 auto 10px; opacity: .55; }
         .empty p { margin: 0; font-size: 14px; }
@@ -165,6 +174,14 @@
         .modal-actions button { min-height: 46px; border: 0; border-radius: 12px; font-weight: 800; }
         .cancel { color: var(--ink); background: #edf2f1; }
         .confirm { color: #fff; background: var(--rose); }
+        .edit-form { display: grid; gap: 14px; margin: 20px 0; text-align: left; }
+        .edit-form label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 700; }
+        .edit-form input { width: 100%; min-height: 44px; padding: 9px 10px; color: var(--ink); background: #f7faf9; border: 1px solid var(--line); border-radius: 10px; }
+        .edit-form input:focus { border-color: var(--teal); outline: 3px solid rgba(22, 135, 126, .15); }
+        .toast { position: fixed; z-index: 11; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); left: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 520px; margin: 0 auto; padding: 12px 14px; color: #fff; background: #173b38; border-radius: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .2); }
+        .toast[hidden] { display: none; }
+        .toast-message { font-size: 13px; }
+        .undo-button { padding: 7px 10px; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, .5); border-radius: 8px; font-size: 13px; font-weight: 800; }
 
         :focus-visible { outline: 3px solid rgba(22, 135, 126, .35); outline-offset: 2px; }
 
@@ -215,6 +232,14 @@
             </section>
 
             <section class="content" aria-label="Histórico">
+                <div id="latestCard" class="latest-card" hidden>
+                    <p class="latest-label">Última contração</p>
+                    <div class="latest-grid">
+                        <p id="latestDuration" class="latest-value">--<small>Duração</small></p>
+                        <p id="latestFrequency" class="latest-value">--<small>Intervalo</small></p>
+                        <p id="latestTime" class="latest-value">--<small>Horário</small></p>
+                    </div>
+                </div>
                 <div class="summary">
                     <div class="summary-card"><p class="summary-label">Média de duração</p><p id="avgDuration" class="summary-value">--</p></div>
                     <div class="summary-card"><p class="summary-label">Média de intervalo</p><p id="avgFrequency" class="summary-value">--</p></div>
@@ -231,6 +256,23 @@
             <p>Esta ação apagará todas as contrações gravadas e não pode ser desfeita.</p>
             <div class="modal-actions"><button id="btnCancelClear" class="cancel" type="button">Cancelar</button><button id="btnConfirmClear" class="confirm" type="button">Sim, limpar</button></div>
         </div>
+    </div>
+
+    <div id="editModal" class="modal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+            <h2 id="editModalTitle">Editar contração</h2>
+            <p>Ajuste o horário ou a duração registrada.</p>
+            <form id="editForm" class="edit-form">
+                <label>Horário de início<input id="editStart" type="datetime-local" required></label>
+                <label>Duração (segundos)<input id="editDuration" type="number" min="0" step="1" required></label>
+                <div class="modal-actions"><button id="btnCancelEdit" class="cancel" type="button">Cancelar</button><button class="confirm" type="submit">Salvar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="undoToast" class="toast" hidden>
+        <span class="toast-message">Contração excluída.</span>
+        <button id="btnUndoDelete" class="undo-button" type="button">Desfazer</button>
     </div>
 
     <script>
@@ -252,13 +294,28 @@
         const contractionCount = document.getElementById('contractionCount');
         const avgDurationEl = document.getElementById('avgDuration');
         const avgFrequencyEl = document.getElementById('avgFrequency');
+        const latestCard = document.getElementById('latestCard');
+        const latestDuration = document.getElementById('latestDuration');
+        const latestFrequency = document.getElementById('latestFrequency');
+        const latestTime = document.getElementById('latestTime');
         const btnSettings = document.getElementById('btnSettings');
         const confirmModal = document.getElementById('confirmModal');
         const btnCancelClear = document.getElementById('btnCancelClear');
         const btnConfirmClear = document.getElementById('btnConfirmClear');
+        const editModal = document.getElementById('editModal');
+        const editForm = document.getElementById('editForm');
+        const editStart = document.getElementById('editStart');
+        const editDuration = document.getElementById('editDuration');
+        const btnCancelEdit = document.getElementById('btnCancelEdit');
+        const undoToast = document.getElementById('undoToast');
+        const btnUndoDelete = document.getElementById('btnUndoDelete');
+        let editingId = null;
+        let deletedForUndo = null;
+        let undoTimeout = null;
 
         const iconPlay = '<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
         const iconStop = '<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>';
+        const iconEdit = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>';
         const iconTrash = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
         function setupQuickAction() {
@@ -330,14 +387,25 @@
         function updateHistoryUI() {
             contractionCount.textContent = `${contractions.length} registro${contractions.length !== 1 ? 's' : ''}`;
             historyList.innerHTML = '';
+            updateLatestSummary();
             if (!contractions.length) { historyList.innerHTML = '<div class="empty"><svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><p>Nenhuma contração registrada ainda.</p></div>'; avgDurationEl.textContent = '--'; avgFrequencyEl.textContent = '--'; return; }
             contractions.forEach(item => {
                 const time = new Date(item.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                 const row = document.createElement('article'); row.className = 'history-item';
-                row.innerHTML = `<div class="history-main"><div class="time">${time}</div><div><p class="history-title">Duração: <span class="duration">${formatDurationMs(item.duration, true)}</span></p><p class="frequency"><span aria-hidden="true">◷</span> Intervalo: ${item.frequency === null ? 'Primeira' : formatDurationMs(item.frequency, true)}</p></div></div><button class="delete-button" type="button" aria-label="Excluir contração das ${time}">${iconTrash}</button>`;
+                row.innerHTML = `<div class="history-main"><div class="time">${time}</div><div><p class="history-title">Duração: <span class="duration">${formatDurationMs(item.duration, true)}</span></p><p class="frequency"><span aria-hidden="true">◷</span> Intervalo: ${item.frequency === null ? 'Primeira' : formatDurationMs(item.frequency, true)}</p></div></div><div class="history-actions"><button class="edit-button" type="button" aria-label="Editar contração das ${time}">${iconEdit}</button><button class="delete-button" type="button" aria-label="Excluir contração das ${time}">${iconTrash}</button></div>`;
+                row.querySelector('.edit-button').addEventListener('click', () => openEditModal(item.id));
                 row.querySelector('.delete-button').addEventListener('click', () => deleteContraction(item.id)); historyList.appendChild(row);
             });
             calculateAverages();
+        }
+
+        function updateLatestSummary() {
+            const latest = contractions[0];
+            latestCard.hidden = !latest;
+            if (!latest) return;
+            latestDuration.innerHTML = `${formatDurationMs(latest.duration, true)}<small>Duração</small>`;
+            latestFrequency.innerHTML = `${latest.frequency === null ? 'Primeira' : formatDurationMs(latest.frequency, true)}<small>Intervalo</small>`;
+            latestTime.innerHTML = `${new Date(latest.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}<small>Horário</small>`;
         }
 
         function calculateAverages() {
@@ -348,15 +416,55 @@
 
         function deleteContraction(id) {
             const item = contractions.find(entry => entry.id === id); if (!item || !window.confirm('Excluir esta contração?')) return;
+            deletedForUndo = { ...item };
             contractions = contractions.filter(entry => entry.id !== id); recalculateFrequencies(); saveContractions(); updateHistoryUI();
+            undoToast.hidden = false;
+            clearTimeout(undoTimeout);
+            undoTimeout = setTimeout(() => { deletedForUndo = null; undoToast.hidden = true; }, 5000);
         }
+
+        function toDateTimeLocal(timestamp) {
+            const date = new Date(timestamp);
+            const localDate = new Date(timestamp - date.getTimezoneOffset() * 60000);
+            return localDate.toISOString().slice(0, 16);
+        }
+
+        function openEditModal(id) {
+            const item = contractions.find(entry => entry.id === id); if (!item) return;
+            editingId = id;
+            editStart.value = toDateTimeLocal(item.startTime);
+            editDuration.value = Math.round(item.duration / 1000);
+            editModal.hidden = false;
+            editStart.focus();
+        }
+
+        function closeEditModal() { editModal.hidden = true; editingId = null; }
+
+        editForm.addEventListener('submit', event => {
+            event.preventDefault();
+            const item = contractions.find(entry => entry.id === editingId);
+            const start = new Date(editStart.value).getTime();
+            const durationSeconds = Number(editDuration.value);
+            if (!item || !Number.isFinite(start) || !Number.isFinite(durationSeconds) || durationSeconds < 0) return;
+            item.startTime = start;
+            item.duration = Math.round(durationSeconds * 1000);
+            item.endTime = item.startTime + item.duration;
+            recalculateFrequencies(); saveContractions(); updateHistoryUI(); closeEditModal();
+        });
+        btnCancelEdit.addEventListener('click', closeEditModal);
+        editModal.addEventListener('click', event => { if (event.target === editModal) closeEditModal(); });
+        btnUndoDelete.addEventListener('click', () => {
+            if (!deletedForUndo) return;
+            contractions.push(deletedForUndo); deletedForUndo = null; clearTimeout(undoTimeout); undoToast.hidden = true;
+            recalculateFrequencies(); saveContractions(); updateHistoryUI();
+        });
 
         btnDiscardActive.addEventListener('click', () => { if (!isTracking || !window.confirm('Descartar a contagem atual?')) return; isTracking = false; activeStartTime = null; stopTimer(); localStorage.removeItem('app_activeStartTime'); stopUI(); });
         btnSettings.addEventListener('click', () => { confirmModal.hidden = false; btnCancelClear.focus(); });
         btnCancelClear.addEventListener('click', () => { confirmModal.hidden = true; });
-        btnConfirmClear.addEventListener('click', () => { contractions = []; localStorage.removeItem('app_contractions'); updateHistoryUI(); confirmModal.hidden = true; });
+        btnConfirmClear.addEventListener('click', () => { contractions = []; deletedForUndo = null; undoToast.hidden = true; localStorage.removeItem('app_contractions'); updateHistoryUI(); confirmModal.hidden = true; });
         confirmModal.addEventListener('click', event => { if (event.target === confirmModal) confirmModal.hidden = true; });
-        document.addEventListener('keydown', event => { if (event.key === 'Escape') confirmModal.hidden = true; });
+        document.addEventListener('keydown', event => { if (event.key !== 'Escape') return; confirmModal.hidden = true; closeEditModal(); });
 
         init();
     </script>
